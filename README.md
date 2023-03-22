@@ -26,7 +26,3 @@ Note that the `BUNGIE_API_KEY` environment variable must be set to a valid Bungi
 - [discord.js](https://discord.js.org/): A powerful JavaScript library for interacting with the Discord API.
 - [axios](https://github.com/axios/axios): A promise-based HTTP client for the browser and node.js.
 - [mongodb](https://www.mongodb.com/): A general purpose, document-based, distributed database.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
