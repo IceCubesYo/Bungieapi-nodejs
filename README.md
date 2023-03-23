@@ -14,7 +14,7 @@ This bot requires the following dependencies:
 
 To install and use this bot, follow these steps:
 
-- Clone this repository to your local machine using git clone https://github.com/your-username/discord-destiny-2-bot.git
+- Clone this repository to your local machine using [git clone](https://github.com/your-username/discord-destiny-2-bot.git)
 - Install the dependencies by running npm install.
 - Create a .env file in the root directory of the project and set the required environment variables.
 - Start the bot by running node index.js.
