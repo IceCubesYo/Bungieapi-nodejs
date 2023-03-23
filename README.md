@@ -10,7 +10,7 @@ This bot requires the following dependencies:
 - axios: a Promise-based HTTP client for the browser and Node.js.
 - mongodb: the official MongoDB driver for Node.js.
 
-##Installation
+## Installation
 
 To install and use this bot, follow these steps:
 
