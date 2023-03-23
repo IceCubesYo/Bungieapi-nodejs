@@ -1,46 +1,35 @@
+require('dotenv').config();
 const {
-    Client,
-    Intents
-  } = require('discord.js');
-  const axios = require('axios');
-  const {
-    MongoClient
-  } = require('mongodb');
-  
-  const client = new Client({
-    intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES]
-  });
-    
-  // bot is ready
-  client.on('ready', () => {
-    console.log(`Logged in as ${client.user.tag}!`);
-    clientDb.connect();
-  });
-  
-  // Create a new MongoClient
-  const uri = 'MongoLink';
-  const options = {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  };
-  const clientDb = new MongoClient(uri);
-  const clientDs = new MongoClient(uri, options);
-  
-  // Connect to the MongoDB database
-  clientDs.connect((err) => {
-    if (err) {
-        console.error(err);
-        return;
-    }
-    console.log('Connected to the database!');
-  });
-  
-  // Connect to the database
-  clientDb.connect();
-  
-  // Get the database instance
-  const db = clientDb.db('<database>');
-    
+  Client,
+  Intents
+} = require('discord.js');
+const axios = require('axios');
+const {
+  MongoClient
+} = require('mongodb');
+
+const client = new Client({
+  intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES]
+});
+
+// bot is ready
+client.on('ready', async () => {
+  console.log(`Logged in as ${client.user.tag}!`);
+  await clientDb.connect();
+  console.log('Connected to the database!');
+});
+
+// Create a new MongoClient
+const uri = process.env.MONGODB_URI;
+const options = {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+};
+const clientDb = new MongoClient(uri, options);
+
+// Get the database instance
+const db = clientDb.db(process.env.DB_NAME);
+
   // Commands
   client.on('messageCreate', async(message) => {
     if (!message.content.startsWith('!')) return;
@@ -55,7 +44,7 @@ const {
         }
         const response = await axios.get(`https://www.bungie.net/Platform/Destiny2/SearchDestinyPlayer/-1/${encodeURIComponent(displayName)}/`, {
             headers: {
-                'X-API-Key': 'API KEY'
+                'X-API-Key': process.env.BUNGIE_API_KEY
             }
         });
   
@@ -111,10 +100,30 @@ const {
           const membershipType = player.membershipType;
           const membershipId = player.membershipId;
   
+          // Ask user which character to select
+          const characterNames = await getCharacterNames(message.author.id);
+  
+          if (!characterNames || characterNames.length === 0) {
+              throw new Error('No character names found');
+          }
+  
+          message.reply(`Please select a character: ${characterNames.join(', ')}`);
+  
+          // Wait for user to select character
+          const filter = m => m.author.id === message.author.id;
+          const collected = await message.channel.awaitMessages({ filter, max: 1, time: 30000, errors: ['time'] });
+          const characterName = collected.first().content.trim().toLowerCase();
+  
+          // Get character ID for selected character
+          const characterId = await getCharacterId(message.author.id, characterName);
+  
+          if (!characterId) {
+              return message.reply(`Could not find character "${characterName}"`);
+          }
+  
           try {
-              const emblem = await getEmblem(membershipType, membershipId);
-              const guardian = await getGuardian(membershipType, membershipId);
-              message.reply(`Your current emblem on your ${guardian.name} is: ${emblem.displayProperties.name}\nIcon: https://Bungie.net${emblem.secondaryIcon}`);
+              const emblem = await getEmblem(membershipType, membershipId, characterId);
+              message.reply(`Your current emblem on your ${characterName} is: ${emblem.displayProperties.name}\nIcon: https://Bungie.net${emblem.secondaryIcon}`);
           } catch (error) {
               console.error(`Error retrieving emblem for user ${message.author.tag} (${message.author.id}):`, error);
               message.reply('An error occurred while retrieving your emblem. Please try again later.');
@@ -123,7 +132,7 @@ const {
           console.error(`Could not find Destiny 2 profile for user ${message.author.tag} (${message.author.id})`);
           message.reply('You have not stored a Destiny 2 profile. Please store your profile by typing !addprofile <profile name>');
       }
-    }else if (command === 'raid') {
+  }else if (command === 'raid') {
       try {
         // Retrieve user's stored Destiny 2 profile
         const userId = message.author.id;
@@ -177,7 +186,7 @@ const {
           // Send raid information to user
           message.reply(`Latest raid for ${characterName}:\nRaid: ${raidName}\nTime: ${latestRaid.duration}\nDate: ${raidTime}\nKills: ${kills}\nDeaths: ${deaths}\nRaid Report: ${raidReportLink}`);
         } else {
-          message.reply('Your Destiny 2 profile could not be found.');
+          message.reply('You have not stored a Destiny 2 profile. Please store your profile by typing !addprofile <profile name>');
         }
       } catch (error) {
         console.error(error);
@@ -205,11 +214,11 @@ const {
     }
   }
   
-  async function getEmblem(characterId) {
+  async function getEmblem(membershipType, membershipId, characterId) {
     try {
-        const response = await axios.get(`https://www.bungie.net/Platform/Destiny2/2/Profile/-1/Character/${characterId}/?components=200`, {
+        const response = await axios.get(`https://www.bungie.net/Platform/Destiny2/${membershipType}/Profile/${membershipId}/Character/${characterId}/?components=200`, {
             headers: {
-                'X-API-Key': 'API KEY'
+                'X-API-Key': process.env.BUNGIE_API_KEY
             }
         });
 
@@ -217,7 +226,7 @@ const {
 
         const manifestResponse = await axios.get(`https://www.bungie.net/Platform/Destiny2/Manifest/DestinyInventoryItemDefinition/${emblemHash}/`, {
             headers: {
-                'X-API-Key': 'API KEY'
+                'X-API-Key': process.env.BUNGIE_API_KEY
             }
         });
 
@@ -226,49 +235,6 @@ const {
         console.log(error);
         throw error;
     }
-}
-  
-async function getGuardian(characterId) {
-  try {
-      const response = await axios.get(`https://www.bungie.net/Platform/Destiny2/2/Profile/-1/Character/${characterId}/?components=200`, {
-          headers: {
-              'X-API-Key': 'API KEY'
-          }
-      });
-
-      if (response.status !== 200) {
-          throw new Error(`Failed to retrieve profile data: ${response.status}`);
-      }
-
-      const classHash = response.data.Response.character.data.classHash;
-
-      const manifestResponse = await axios.get(`https://www.bungie.net/Platform/Destiny2/Manifest/DestinyClassDefinition/${classHash}/`, {
-          headers: {
-              'X-API-Key': 'API KEY'
-          }
-      });
-
-      if (manifestResponse.status !== 200) {
-          throw new Error(`Failed to retrieve class definition: ${manifestResponse.status}`);
-      }
-
-      const classDefinition = manifestResponse.data.Response;
-
-      if (!classDefinition) {
-          throw new Error('Failed to retrieve class definition data');
-      }
-
-      const displayProperties = classDefinition.displayProperties;
-
-      if (!displayProperties) {
-          throw new Error('Failed to retrieve class display properties');
-      }
-
-      return displayProperties;
-  } catch (error) {
-      console.log(error);
-      throw error;
-  }
 }
 
   
@@ -337,7 +303,7 @@ async function getCharacters(userId) {
 
     const response = await axios.get(`https://www.bungie.net/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=200`, {
       headers: {
-        'X-API-Key': 'API KEY'
+        'X-API-Key': process.env.BUNGIE_API_KEY
       }
     });
 
@@ -360,7 +326,7 @@ async function getCharacters(userId) {
       // Get class name
       const manifestResponse = await axios.get(`https://www.bungie.net/Platform/Destiny2/Manifest/DestinyClassDefinition/${classHash}/`, {
         headers: {
-          'X-API-Key': 'API KEY'
+          'X-API-Key': process.env.BUNGIE_API_KEY
         }
       });
 
@@ -384,7 +350,7 @@ async function getLatestRaidActivity(membershipType, membershipId, characterId) 
     const activityHistoryUrl = `https://www.bungie.net/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${characterId}/Stats/Activities/?mode=4`;
     const activityHistoryResponse = await axios.get(activityHistoryUrl, {
       headers: {
-        'X-API-Key': 'API KEY'
+        'X-API-Key': process.env.BUNGIE_API_KEY
       },
     });
 
@@ -408,7 +374,7 @@ async function getLatestRaidActivity(membershipType, membershipId, characterId) 
         const raidDefinitionUrl = `https://www.bungie.net/Platform/Destiny2/Manifest/DestinyActivityDefinition/${directorActivityHash}/`;
         const raidDefinitionResponse = await axios.get(raidDefinitionUrl, {
           headers: {
-            'X-API-Key': 'API KEY'
+            'X-API-Key': process.env.BUNGIE_API_KEY
           },
         });
 
@@ -435,4 +401,4 @@ async function getLatestRaidActivity(membershipType, membershipId, characterId) 
     }
   }
   
-  client.login('Discord Token');
+  client.login(process.env.DISCORD_TOKEN);
