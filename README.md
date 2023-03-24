@@ -1,4 +1,4 @@
-#Discord Destiny 2 Bot
+# Discord Destiny 2 Bot
 
 This is a Discord bot that allows users to store their Destiny 2 profile information and retrieve their current emblem and latest raid information.
 
